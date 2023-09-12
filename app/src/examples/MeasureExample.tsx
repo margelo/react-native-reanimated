@@ -1,4 +1,3 @@
-/* global _WORKLET */
 import { Button, StyleSheet, View } from 'react-native';
 
 import React from 'react';
@@ -31,7 +30,6 @@ export default function MeasureExample() {
 
   const handleMeasureFromUI = () => {
     runOnUI(() => {
-      'worklet';
       console.log(_WORKLET, '', measure(aref));
     })();
   };

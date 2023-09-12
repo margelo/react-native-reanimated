@@ -1,4 +1,3 @@
-/* global _WORKLET */
 import Animated, {
   runOnUI,
   scrollTo,
@@ -20,7 +19,6 @@ export default function ScrollToExample() {
 
   const scrollFromUI = () => {
     runOnUI(() => {
-      'worklet';
       console.log(_WORKLET);
       scrollTo(aref, 0, Math.random() * 2000, animated);
     })();

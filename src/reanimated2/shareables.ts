@@ -1,5 +1,9 @@
 import NativeReanimatedModule from './NativeReanimated';
-import { ShareableRef } from './commonTypes';
+import type {
+  ShareableRef,
+  FlatShareableRef,
+  __WorkletFunction,
+} from './commonTypes';
 import { shouldBeUseWeb } from './PlatformChecker';
 import { registerWorkletStackDetails } from './errors';
 import { jsVersion } from './platform-specific/jsVersion';
@@ -20,7 +24,8 @@ const _shareableFlag = Symbol('shareable flag');
 
 const MAGIC_KEY = 'REANIMATED_MAGIC_KEY';
 
-function isHostObject(value: any): boolean {
+function isHostObject(value: NonNullable<object>) {
+  'worklet';
   // We could use JSI to determine whether an object is a host object, however
   // the below workaround works well and is way faster than an additional JSI call.
   // We use the fact that host objects have broken implementation of `hasOwnProperty`
@@ -55,7 +60,7 @@ const INACCESSIBLE_OBJECT = {
     return new Proxy(
       {},
       {
-        get: (_: any, prop: string) => {
+        get: (_: any, prop: string | symbol) => {
           if (prop === '_isReanimatedSharedValue') {
             // not very happy about this check here, but we need to allow for
             // "inaccessible" objects to be tested with isSharedValue check
@@ -67,12 +72,14 @@ const INACCESSIBLE_OBJECT = {
             return false;
           }
           throw new Error(
-            `Trying to access property \`${prop}\` of an object which cannot be sent to the UI runtime.`
+            `[Reanimated] Trying to access property \`${String(
+              prop
+            )}\` of an object which cannot be sent to the UI runtime.`
           );
         },
         set: () => {
           throw new Error(
-            'Trying to write to an object which cannot be sent to the UI runtime.'
+            '[Reanimated] Trying to write to an object which cannot be sent to the UI runtime.'
           );
         },
       }
@@ -84,9 +91,6 @@ const DETECT_CYCLIC_OBJECT_DEPTH_THRESHOLD = 30;
 // Below variable stores object that we process in makeShareableCloneRecursive at the specified depth.
 // We use it to check if later on the function reenters with the same object
 let processedObjectAtThresholdDepth: any;
-
-// We only want to show mismatch error once so we use this flag to track it
-let didShowPluginVersionMismatchError = false;
 
 export function makeShareableCloneRecursive<T>(
   value: any,
@@ -106,7 +110,7 @@ export function makeShareableCloneRecursive<T>(
       processedObjectAtThresholdDepth = value;
     } else if (value === processedObjectAtThresholdDepth) {
       throw new Error(
-        'Trying to convert a cyclic object to a shareable. This is not supported.'
+        '[Reanimated] Trying to convert a cyclic object to a shareable. This is not supported.'
       );
     }
   } else {
@@ -141,32 +145,41 @@ export function makeShareableCloneRecursive<T>(
         if (value.__workletHash !== undefined) {
           // we are converting a worklet
           if (__DEV__) {
-            if (
-              // We don't want this error to be logged more than once.
-              !didShowPluginVersionMismatchError &&
-              value.__version !== jsVersion
-            ) {
-              didShowPluginVersionMismatchError = true;
-              console.error(`[Reanimated] Mismatch between JavaScript code version and Reanimated Babel plugin version (${jsVersion} vs. ${value.__version}). Please clear your Metro bundler cache with \`yarn start --reset-cache\`,
-              \`npm start -- --reset-cache\` or \`expo start -c\` and run the app again.`);
+            const babelVersion = value.__initData.version;
+            if (babelVersion === undefined) {
+              throw new Error(`[Reanimated] Unknown version of Reanimated Babel plugin.
+See \`https://docs.swmansion.com/react-native-reanimated/docs/guides/troubleshooting#unknown-version-of-reanimated-babel-plugin\` for more details. 
+Offending code was: \`${getWorkletCode(value)}\``);
+            } else if (babelVersion !== jsVersion) {
+              throw new Error(`[Reanimated] Mismatch between JavaScript code version and Reanimated Babel plugin version (${jsVersion} vs. ${babelVersion}).        
+See \`https://docs.swmansion.com/react-native-reanimated/docs/guides/troubleshooting#mismatch-between-javascript-code-version-and-reanimated-babel-plugin-version\` for more details.
+Offending code was: \`${getWorkletCode(value)}\``);
             }
             registerWorkletStackDetails(
               value.__workletHash,
               value.__stackDetails
             );
             delete value.__stackDetails;
+          } else if (value.__stackDetails) {
+            // Detected debug version of the worklet in release bundle. This
+            // might lead to unexpected issues or errors. Probably one of user
+            // dependencies provided transpiled code with debug version of the
+            // Reanimated plugin.
+            throw new Error(
+              `[Reanimated] Using dev bundle in a release app build is not supported.
+See \`https://docs.swmansion.com/react-native-reanimated/docs/guides/troubleshooting#using-dev-bundle-in-a-release-app-build-is-not-supported\` for more details.`
+            );
           }
           // to save on transferring static __initData field of worklet structure
           // we request shareable value to persist its UI counterpart. This means
           // that the __initData field that contains long strings represeting the
           // worklet code, source map, and location, will always be
-          // serialized/deserialized once. We don't increase depth when calling
-          // this method as these objects have one level anyways.
+          // serialized/deserialized once.
           toAdapt.__initData = makeShareableCloneRecursive(
             value.__initData,
-            true
+            true,
+            depth + 1
           );
-          delete value.__initData;
         }
 
         for (const [key, element] of Object.entries(value)) {
@@ -176,6 +189,17 @@ export function makeShareableCloneRecursive<T>(
             depth + 1
           );
         }
+      } else if (value instanceof RegExp) {
+        const pattern = value.source;
+        const flags = value.flags;
+        const handle = makeShareableCloneRecursive({
+          __init: () => {
+            'worklet';
+            return new RegExp(pattern, flags);
+          },
+        });
+        registerShareableMapping(value, handle);
+        return handle as ShareableRef<T>;
       } else {
         // This is reached for object types that are not of plain Object.prototype.
         // We don't support such objects from being transferred as shareables to
@@ -211,26 +235,64 @@ export function makeShareableCloneRecursive<T>(
   return NativeReanimatedModule.makeShareableClone(value, shouldPersistRemote);
 }
 
-export function makeShareableCloneOnUIRecursive<T>(value: T): ShareableRef<T> {
+const WORKLET_CODE_THRESHOLD = 255;
+
+function getWorkletCode(value: __WorkletFunction) {
+  // @ts-ignore this is fine
+  const code = value?.__initData?.code;
+  if (!code) {
+    return 'unknown';
+  }
+  if (code.length > WORKLET_CODE_THRESHOLD) {
+    return `${code.substring(0, WORKLET_CODE_THRESHOLD)}...`;
+  }
+  return code;
+}
+
+type RemoteFunction<T> = {
+  __remoteFunction: FlatShareableRef<T>;
+};
+
+function isRemoteFunction<T>(value: object): value is RemoteFunction<T> {
+  'worklet';
+  return '__remoteFunction' in value;
+}
+
+export function makeShareableCloneOnUIRecursive<T>(
+  value: T
+): FlatShareableRef<T> {
   'worklet';
   if (USE_STUB_IMPLEMENTATION) {
     // @ts-ignore web is an interesting place where we don't run a secondary VM on the UI thread
     // see more details in the comment where USE_STUB_IMPLEMENTATION is defined.
     return value;
   }
-  function cloneRecursive<T>(value: T): ShareableRef<T> {
-    const type = typeof value;
-    if ((type === 'object' || type === 'function') && value !== null) {
-      let toAdapt: any;
-      if (Array.isArray(value)) {
-        toAdapt = value.map((element) => cloneRecursive(element));
-      } else if (value !== undefined) {
-        toAdapt = {};
-        for (const [key, element] of Object.entries(value)) {
-          toAdapt[key] = cloneRecursive(element);
-        }
+  function cloneRecursive<T>(value: T): FlatShareableRef<T> {
+    if (
+      (typeof value === 'object' && value !== null) ||
+      typeof value === 'function'
+    ) {
+      if (isHostObject(value)) {
+        // We call `_makeShareableClone` to wrap the provided HostObject
+        // inside ShareableJSRef.
+        return _makeShareableClone(value) as FlatShareableRef<T>;
       }
-      return _makeShareableClone(toAdapt);
+      if (isRemoteFunction<T>(value)) {
+        // RemoteFunctions are created by us therefore they are
+        // a Shareable out of the box and there is no need to
+        // call `_makeShareableClone`.
+        return value.__remoteFunction;
+      }
+      if (Array.isArray(value)) {
+        return _makeShareableClone(
+          value.map(cloneRecursive)
+        ) as FlatShareableRef<T>;
+      }
+      const toAdapt: Record<string, FlatShareableRef<T>> = {};
+      for (const [key, element] of Object.entries(value)) {
+        toAdapt[key] = cloneRecursive<T>(element);
+      }
+      return _makeShareableClone(toAdapt) as FlatShareableRef<T>;
     }
     return _makeShareableClone(value);
   }
