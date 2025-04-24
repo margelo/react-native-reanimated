@@ -1,4 +1,7 @@
 #include <reanimated/Fabric/updates/UpdatesRegistry.h>
+#include <react/renderer/components/view/ViewProps.h>
+
+#include <android/log.h>
 
 namespace reanimated {
 
@@ -47,6 +50,15 @@ void UpdatesRegistry::collectProps(PropsMap &propsMap) {
       auto propsVector = std::vector<RawProps>{};
       propsVector.emplace_back(RawProps(props));
       propsMap.emplace(&family, propsVector);
+
+      // Note: this static cast isn't needed actually
+      const auto& test = static_cast<const ViewProps&>(*shadowNode->getProps());
+      auto widthCurrentProps = test.rawProps.at("width").getDouble();
+      // not sure if the shadow node is outdated?
+      __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "ShadowNode width %f, props width %f", widthCurrentProps, props.at("width").getDouble());
+
+//      test->
+//      test->get
     } else {
       it->second.push_back(RawProps(props));
     }
@@ -82,6 +94,10 @@ void UpdatesRegistry::removeFromUpdatesRegistry(const Tag tag) {
   updatePropsToRevert(tag);
 #endif
   updatesRegistry_.erase(tag);
+}
+
+void UpdatesRegistry::forceRemoveFromUpdatesRegistry(const Tag tag) {
+    updatesRegistry_.erase(tag);
 }
 
 void UpdatesRegistry::flushUpdatesToRegistry(const UpdatesBatch &updatesBatch) {

@@ -18,9 +18,10 @@ function randomBetween(a: number, b: number) {
 interface EmojiProps {
   emoji: string;
   progress: SharedValue<number>;
+  index: number;
 }
 
-function Emoji({ emoji, progress }: EmojiProps) {
+function Emoji({ emoji, progress, index }: EmojiProps) {
   const { fontSize, left, startY, endY, rotate, a, b } = useMemo(() => {
     return {
       fontSize: randomBetween(60, 100),
@@ -33,6 +34,7 @@ function Emoji({ emoji, progress }: EmojiProps) {
     };
   }, []);
 
+   
   const animatedStyle = useAnimatedStyle(() => {
     return {
       transform: [
@@ -44,7 +46,7 @@ function Emoji({ emoji, progress }: EmojiProps) {
   });
 
   return (
-    <Animated.Text style={[{ fontSize }, styles.text, animatedStyle]}>
+    <Animated.Text style={[{ fontSize }, styles.text, index <= 2 ? animatedStyle : undefined]}>
       {emoji}
     </Animated.Text>
   );
@@ -58,7 +60,7 @@ function EmojiWaterfallProvider({ children }: React.PropsWithChildren) {
   const progress = useSharedValue(0);
 
   const emoji = '💵';
-  const count = 100;
+  const count = 300;
   const duration = 5000;
 
   const startAnimation = () => {
@@ -71,7 +73,7 @@ function EmojiWaterfallProvider({ children }: React.PropsWithChildren) {
       {children}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         {[...Array(count)].map((_, i) => (
-          <Emoji emoji={emoji} progress={progress} key={i} />
+          <Emoji emoji={emoji} progress={progress} key={i} index={i} />
         ))}
       </View>
     </EmojiWaterfallContext>

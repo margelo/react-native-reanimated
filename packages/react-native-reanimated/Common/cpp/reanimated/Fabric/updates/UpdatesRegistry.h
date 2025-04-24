@@ -47,6 +47,7 @@ class UpdatesRegistry {
 
   void flushUpdates(UpdatesBatch &updatesBatch);
   void collectProps(PropsMap &propsMap);
+  void forceRemoveFromUpdatesRegistry(Tag tag);
 
  protected:
   mutable std::mutex mutex_;

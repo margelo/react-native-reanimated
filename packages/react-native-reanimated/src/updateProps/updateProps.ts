@@ -2,7 +2,7 @@
 'use strict';
 
 import type { MutableRefObject } from 'react';
-import { runOnUI } from 'react-native-worklets';
+import { runOnJS, runOnUI } from 'react-native-worklets';
 
 import { processColorsInProps } from '../Colors';
 import type {
@@ -15,6 +15,7 @@ import type { Descriptor } from '../hook/commonTypes';
 import { isJest, shouldBeUseWeb } from '../PlatformChecker';
 import type { ReanimatedHTMLElement } from '../ReanimatedModule/js-reanimated';
 import { _updatePropsJS } from '../ReanimatedModule/js-reanimated';
+import { ComponentRegistry } from './ComponentRegistry';
 import { processTransformOrigin } from './processTransformOrigin';
 
 let updateProps: (
@@ -61,12 +62,43 @@ export const updatePropsJestWrapper = (
 
 export default updateProps;
 
+function debounceByTagRAF() {
+  // Map to track pending animation frames by ID
+  const pendingFrames = new Map<number | ReanimatedHTMLElement, NodeJS.Timeout>();
+
+  return function(
+    tag: number | ReanimatedHTMLElement, 
+    props: StyleProps
+  ) {
+    // If there's already a pending frame for this ID, cancel it
+    if (pendingFrames.has(tag)) {
+      clearTimeout(pendingFrames.get(tag));
+    }
+    
+    // Schedule a new frame and store its ID
+    const frameId = setTimeout(() => {
+      const component = ComponentRegistry.getComponent(tag);
+      if (component) {
+        component._updateStylePropsJS(props);
+      }
+
+      pendingFrames.delete(tag);
+    }, 20);
+    
+    pendingFrames.set(tag, frameId);
+  };
+}
+
+// Create the debounce manager
+const debouncedCallByTag = debounceByTagRAF();
+
 function createUpdatePropsManager() {
   'worklet';
   const operations: {
     shadowNodeWrapper: ShadowNodeWrapper;
     updates: StyleProps | AnimatedStyle<any>;
   }[] = [];
+
   return {
     update(
       viewDescriptors: ViewDescriptorsWrapper,
@@ -80,6 +112,8 @@ function createUpdatePropsManager() {
         if (operations.length === 1) {
           queueMicrotask(this.flush);
         }
+
+        runOnJS(debouncedCallByTag)(viewDescriptor.tag, updates);
       });
     },
     flush(this: void) {

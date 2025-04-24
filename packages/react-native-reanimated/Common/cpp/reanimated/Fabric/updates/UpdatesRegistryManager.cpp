@@ -51,6 +51,12 @@ void UpdatesRegistryManager::unmarkNodeAsRemovable(Tag viewTag) {
   removableShadowNodes_.erase(viewTag);
 }
 
+void UpdatesRegistryManager::forceRemoveNode(facebook::react::Tag viewTag) {
+    for (auto &registry : registries_) {
+        registry->forceRemoveFromUpdatesRegistry(viewTag);
+    }
+}
+
 void UpdatesRegistryManager::handleNodeRemovals(
     const RootShadowNode &rootShadowNode) {
   for (auto it = removableShadowNodes_.begin();

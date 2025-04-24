@@ -121,6 +121,7 @@ export interface IAnimatedComponentInternal {
    * handling.
    */
   getComponentViewTag: () => number;
+  _updateStylePropsJS: (props: StyleProps) => void;
 }
 
 export type NestedArray<T> = T | NestedArray<T>[];

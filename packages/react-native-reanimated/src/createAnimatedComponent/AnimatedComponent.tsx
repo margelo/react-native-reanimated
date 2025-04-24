@@ -2,6 +2,7 @@
 import '../layoutReanimation/animationsManager';
 
 import type React from 'react';
+import { StyleSheet } from 'react-native';
 
 import { getReduceMotionFromConfig } from '../animation/util';
 import { maybeBuild } from '../animationBuilder';
@@ -24,6 +25,7 @@ import { addHTMLMutationObserver } from '../layoutReanimation/web/domUtils';
 import { isJest, isWeb, shouldBeUseWeb } from '../PlatformChecker';
 import type { ReanimatedHTMLElement } from '../ReanimatedModule/js-reanimated';
 import { updateLayoutAnimations } from '../UpdateLayoutAnimations';
+import { ComponentRegistry } from '../updateProps/ComponentRegistry';
 import type {
   AnimatedComponentProps,
   AnimatedComponentRef,
@@ -56,7 +58,10 @@ export type Options<P> = {
 
 export default class AnimatedComponent
   extends ReanimatedAnimatedComponent<
-    AnimatedComponentProps<InitialComponentProps>
+    AnimatedComponentProps<InitialComponentProps>,
+    {
+      styleProps: StyleProps;
+    }
   >
   implements IAnimatedComponentInternal
 {
@@ -86,6 +91,9 @@ export default class AnimatedComponent
     super(ChildComponent, props);
     this._options = options;
     this._displayName = displayName;
+    this.state = {
+      styleProps: {},
+    }
 
     if (IS_JEST) {
       this.jestAnimatedStyle = { value: {} };
@@ -111,6 +119,8 @@ export default class AnimatedComponent
 
   componentDidMount() {
     super.componentDidMount();
+    console.log("REA: Mount", this.reanimatedID);
+
     if (!IS_WEB) {
       // It exists only on native platforms. We initialize it here because the ref to the animated component is available only post-mount
       this._NativeEventsManager = new NativeEventsManager(this, this._options);
@@ -119,6 +129,11 @@ export default class AnimatedComponent
     this._jsPropsUpdater.addOnJSPropsChangeListener(this);
     this._attachAnimatedStyles();
     this._InlinePropManager.attachInlineProps(this, this._getViewInfo());
+    
+    const viewTag = this.getComponentViewTag();
+    if (viewTag !== -1) {
+      ComponentRegistry.register(viewTag, this);
+    }
 
     const layout = this.props.layout;
     if (layout) {
@@ -156,10 +171,16 @@ export default class AnimatedComponent
 
   componentWillUnmount() {
     super.componentWillUnmount();
+    console.log("REA: UNMount", this.reanimatedID);
     this._NativeEventsManager?.detachEvents();
     this._jsPropsUpdater.removeOnJSPropsChangeListener(this);
     this._detachStyles();
     this._InlinePropManager.detachInlineProps();
+
+    const viewTag = this.getComponentViewTag();
+    if (viewTag !== -1) {
+      ComponentRegistry.unregister(viewTag);
+    }
 
     const exiting = this.props.exiting;
 
@@ -200,6 +221,11 @@ export default class AnimatedComponent
     } else {
       (this._componentRef as AnimatedComponentRef)?.setNativeProps?.(props);
     }
+  }
+
+  _updateStylePropsJS(props: StyleProps) {
+    console.log("Updated style props", this.reanimatedID)
+    this.setState({ styleProps: props });
   }
 
   _attachAnimatedStyles() {
@@ -421,10 +447,17 @@ export default class AnimatedComponent
         }
       : {};
 
+    const flatStyles = StyleSheet.flatten(filteredProps.style as object);
+    const mergedStyles = {
+      ...flatStyles,
+      ...this.state.styleProps
+    }
+    console.log("REA: Render", this.reanimatedID, mergedStyles);
     return super.render({
       nativeID,
       ...filteredProps,
       ...jestProps,
+      style: mergedStyles
     });
   }
 }

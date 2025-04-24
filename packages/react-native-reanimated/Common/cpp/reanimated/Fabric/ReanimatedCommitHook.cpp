@@ -8,6 +8,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include <android/log.h>
+#include <chrono>
+
 using namespace facebook::react;
 
 namespace reanimated {
@@ -53,6 +56,7 @@ RootShadowNode::Unshared ReanimatedCommitHook::shadowTreeWillCommit(
     RootShadowNode::Shared const &,
     RootShadowNode::Unshared const &newRootShadowNode) noexcept {
   ReanimatedSystraceSection s("ReanimatedCommitHook::shadowTreeWillCommit");
+  auto start = std::chrono::high_resolution_clock::now();
 
   maybeInitializeLayoutAnimations(newRootShadowNode->getSurfaceId());
 
@@ -61,6 +65,11 @@ RootShadowNode::Unshared ReanimatedCommitHook::shadowTreeWillCommit(
           newRootShadowNode);
 
   if (reaShadowNode->hasReanimatedCommitTrait()) {
+//      __android_log_print(
+//              ANDROID_LOG_DEBUG,
+//              "HannoDebug",
+//              "Skip commit from REA"
+//      );
     // ShadowTree commited by Reanimated, no need to apply updates from
     // the updates registry manager
     reaShadowNode->unsetReanimatedCommitTrait();
@@ -79,7 +88,18 @@ RootShadowNode::Unshared ReanimatedCommitHook::shadowTreeWillCommit(
     PropsMap propsMap = updatesRegistryManager_->collectProps();
     updatesRegistryManager_->cancelCommitAfterPause();
 
-    rootNode = cloneShadowTreeWithNewProps(*rootNode, propsMap);
+    auto propMapCount = propsMap.size();
+
+    CloneResult result = cloneShadowTreeWithNewProps(*rootNode, propsMap);
+    rootNode = std::move(result.newRoot);
+
+    // Check for families that we want to remove from the registry
+//      __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "commitHook Families to remove %zu", result.familiesToRemove.size());
+    for (const auto& family : result.familiesToRemove) {
+//        __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "- remove %d", family->getTag());
+        updatesRegistryManager_->forceRemoveNode(family->getTag());
+    }
+
     // If the commit comes from React Native then pause commits from
     // Reanimated since the ShadowTree to be committed by Reanimated may not
     // include the new changes from React Native yet and all changes of animated
@@ -88,6 +108,16 @@ RootShadowNode::Unshared ReanimatedCommitHook::shadowTreeWillCommit(
     // it could lead to RN commits being delayed until the animation is finished
     // (very bad).
     updatesRegistryManager_->pauseReanimatedCommits();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+    __android_log_print(
+        ANDROID_LOG_DEBUG,
+        "HannoDebug",
+        "Props map count %zu took %f ms",
+        propMapCount,
+        duration / 1000000.0f);
   }
 
   return rootNode;
