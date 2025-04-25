@@ -13,8 +13,8 @@ import type {
 import { ReanimatedError } from '../errors';
 import type { Descriptor } from '../hook/commonTypes';
 import { isJest, shouldBeUseWeb } from '../PlatformChecker';
-import type { ReanimatedHTMLElement } from '../ReanimatedModule/js-reanimated';
-import { _updatePropsJS } from '../ReanimatedModule/js-reanimated';
+import type {ReanimatedHTMLElement  } from '../ReanimatedModule/js-reanimated';
+import { _updatePropsJS  } from '../ReanimatedModule/js-reanimated';
 import { ComponentRegistry } from './ComponentRegistry';
 import { processTransformOrigin } from './processTransformOrigin';
 
@@ -62,42 +62,52 @@ export const updatePropsJestWrapper = (
 
 export default updateProps;
 
-function debounceByTagRAF() {
-  // Map to track pending animation frames by ID
-  const pendingFrames = new Map<number | ReanimatedHTMLElement, NodeJS.Timeout>();
-
-  return function(
-    tag: number | ReanimatedHTMLElement, 
-    props: StyleProps
-  ) {
-    // If there's already a pending frame for this ID, cancel it
-    if (pendingFrames.has(tag)) {
-      clearTimeout(pendingFrames.get(tag));
-    }
-    
-    // Schedule a new frame and store its ID
-    const frameId = setTimeout(() => {
-      const component = ComponentRegistry.getComponent(tag);
-      if (component) {
-        component._updateStylePropsJS(props);
-      }
-
-      pendingFrames.delete(tag);
-    }, 20);
-    
-    pendingFrames.set(tag, frameId);
-  };
+function updateJSProps(tag: number, props: StyleProps) {
+  const component = ComponentRegistry.getComponent(tag);
+  if (component) {
+    component._updateStylePropsJS(props);
+  }
 }
-
-// Create the debounce manager
-const debouncedCallByTag = debounceByTagRAF();
 
 function createUpdatePropsManager() {
   'worklet';
   const operations: {
     shadowNodeWrapper: ShadowNodeWrapper;
     updates: StyleProps | AnimatedStyle<any>;
+    tag: number;
   }[] = [];
+
+
+  const lastUpdateFrameTimeByTag: Record<number, number | undefined> = {};
+  const lastUpdateByTag: Record<number, StyleProps | AnimatedStyle<any> | undefined> = {};
+  const scheduledFrameIds: Record<number, number | undefined> = {};
+
+  function checkUpdate(tag: number) {
+    'worklet';
+
+    const currentFrameTime = global.__frameTimestamp;
+    const lastUpdateFrameTime = lastUpdateFrameTimeByTag[tag];
+    if (!currentFrameTime || !lastUpdateFrameTime) {
+      return;
+    }
+
+    if (currentFrameTime - lastUpdateFrameTime >= 36) {
+      // Animation appears to have settled - update component props on JS
+      runOnJS(updateJSProps)(tag, lastUpdateByTag[tag]);
+      return;
+    }
+
+    if (scheduledFrameIds[tag]) {
+      // Note: REA/Worklets doesn't support cancelAnimationFrame
+      return;
+    }
+
+    scheduledFrameIds[tag] = requestAnimationFrame(() => {
+      'worklet';
+      scheduledFrameIds[tag] = undefined;
+      checkUpdate(tag);
+    });
+  }
 
   return {
     update(
@@ -105,19 +115,25 @@ function createUpdatePropsManager() {
       updates: StyleProps | AnimatedStyle<any>
     ) {
       viewDescriptors.value.forEach((viewDescriptor) => {
+        const tag = viewDescriptor.tag as number; // on mobile it should be a number
         operations.push({
           shadowNodeWrapper: viewDescriptor.shadowNodeWrapper,
+          tag,
           updates,
         });
         if (operations.length === 1) {
           queueMicrotask(this.flush);
         }
 
-        runOnJS(debouncedCallByTag)(viewDescriptor.tag, updates);
+        lastUpdateByTag[tag] = updates;
+        lastUpdateFrameTimeByTag[tag] = global.__frameTimestamp;
       });
     },
     flush(this: void) {
       global._updateProps!(operations);
+      operations.forEach(({ tag }) => {
+        checkUpdate(tag);
+      });
       operations.length = 0;
     },
   };

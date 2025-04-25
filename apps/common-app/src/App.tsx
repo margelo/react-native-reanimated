@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Switch, View } from 'react-native';
+import { Button, Switch, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
+  useSharedValue,
   withSequence,
   withTiming,
-  useSharedValue,
 } from 'react-native-reanimated';
 
 export default function App() {
   const a = useSharedValue(0);
   useEffect(() => {
-    a.value = withTiming(100, { duration: 1000 })
-  }, [])
+    a.value = withTiming(100, { duration: 1000 });
+  }, [a]);
   const styleA = useAnimatedStyle(() => ({
     width: a.value,
   }));
@@ -24,7 +24,7 @@ export default function App() {
   useEffect(() => {
     setTimeout(() => {
       setState(true);
-    }, 3_000); 
+    }, 3_000);
   }, []);
 
   return (
@@ -35,6 +35,12 @@ export default function App() {
         justifyContent: 'center',
       }}>
       <Switch value={state} onChange={() => setState(!state)} />
+      <Button
+        title="Run second animation"
+        onPress={() => {
+          a.value = withTiming(300, { duration: 1000 });
+        }}
+      />
       <Animated.View
         style={[
           styleA,
@@ -56,4 +62,3 @@ export default function App() {
     </View>
   );
 }
-
