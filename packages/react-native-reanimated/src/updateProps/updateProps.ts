@@ -91,9 +91,10 @@ function createUpdatePropsManager() {
       return;
     }
 
-    if (currentFrameTime - lastUpdateFrameTime >= 36) {
+    if (currentFrameTime - lastUpdateFrameTime >= 36) { // ~ 2x frames
       // Animation appears to have settled - update component props on JS
       runOnJS(updateJSProps)(tag, lastUpdateByTag[tag]);
+      lastUpdateByTag[tag] = undefined;
       return;
     }
 
