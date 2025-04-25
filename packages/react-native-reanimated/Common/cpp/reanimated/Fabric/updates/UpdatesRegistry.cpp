@@ -52,10 +52,10 @@ void UpdatesRegistry::collectProps(PropsMap &propsMap) {
       propsMap.emplace(&family, propsVector);
 
       // Note: this static cast isn't needed actually
-      const auto& test = static_cast<const ViewProps&>(*shadowNode->getProps());
-      auto widthCurrentProps = test.rawProps.at("width").getDouble();
+//      const auto& test = static_cast<const ViewProps&>(*shadowNode->getProps());
+//      auto widthCurrentProps = test.rawProps.at("width").getDouble();
       // not sure if the shadow node is outdated?
-      __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "ShadowNode width %f, props width %f", widthCurrentProps, props.at("width").getDouble());
+//      __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "ShadowNode width %f, props width %f", widthCurrentProps, props.at("width").getDouble());
 
 //      test->
 //      test->get

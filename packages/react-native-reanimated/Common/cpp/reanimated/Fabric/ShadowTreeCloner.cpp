@@ -8,6 +8,8 @@
 #include <ranges>
 #include <utility>
 
+#include <folly/json.h>
+
 namespace reanimated {
 
 /**
@@ -73,12 +75,17 @@ std::pair<Props::Shared, bool> mergeProps(
         folly::dynamic dynamicPropForOverwriting(propForOverwriting);
         auto shadowNodeProps = shadowNode.getProps()->rawProps;
         isSame = dynamicPropForOverwriting == shadowNodeProps || checkPropsEqual(dynamicPropForOverwriting, shadowNodeProps);
+        if (isSame /*&& dynamicPropForOverwriting.find("transform") != dynamicPropForOverwriting.items().end()*/) {
+            __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "[%s] propsForOverwriting %s", shadowNode.getProps()->nativeId.c_str(), folly::toPrettyJson(dynamicPropForOverwriting).c_str());
+            __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "[%s] shadowNodeProps     %s", shadowNode.getProps()->nativeId.c_str(), folly::toPrettyJson(shadowNodeProps).c_str());
+        }
     }
 
-    if (!isSame) {
+    // NOTE: if i am not always cloning the props there was a flickering (however its a bit sad since that doesn't happen all the time)
+//    if (!isSame) {
         newProps = shadowNode.getComponentDescriptor().cloneProps(
                 propsParserContext, newProps, std::move(propForOverwriting));
-    }
+//    }
   }
 
   return {newProps, isSame};

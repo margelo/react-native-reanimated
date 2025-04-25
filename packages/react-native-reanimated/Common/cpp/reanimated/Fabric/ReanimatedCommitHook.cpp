@@ -94,10 +94,11 @@ RootShadowNode::Unshared ReanimatedCommitHook::shadowTreeWillCommit(
     rootNode = std::move(result.newRoot);
 
     // Check for families that we want to remove from the registry
-//      __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "commitHook Families to remove %zu", result.familiesToRemove.size());
+      __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "commitHook Families to remove %zu", result.familiesToRemove.size());
     for (const auto& family : result.familiesToRemove) {
 //        __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "- remove %d", family->getTag());
         updatesRegistryManager_->forceRemoveNode(family->getTag());
+//        updatesRegistryManager_->
     }
 
     // If the commit comes from React Native then pause commits from

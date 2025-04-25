@@ -283,7 +283,7 @@ function styleUpdater(
         requestAnimationFrame(frame);
       } else {
         state.isAnimationRunning = false;
-        console.log("styleUpdater: Animation finished");
+        // console.log("styleUpdater: Animation finished");
       }
     };
 
@@ -305,7 +305,7 @@ function styleUpdater(
       updateProps(viewDescriptors, newValues, isAnimatedProps);
     }
 
-    console.log("styleUpdater !hasAnimations");
+    // console.log("styleUpdater !hasAnimations");
   }
   state.last = newValues;
 }
@@ -573,10 +573,10 @@ For more, see the docs: \`https://docs.swmansion.com/react-native-reanimated/doc
       };
     }
     const mapperId = startMapper(fun, inputs);
-    console.log('startMapper', mapperId);
+    // console.log('startMapper', mapperId);
     return () => {
       stopMapper(mapperId);
-      console.log('stopMapper', mapperId);
+      // console.log('stopMapper', mapperId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies);

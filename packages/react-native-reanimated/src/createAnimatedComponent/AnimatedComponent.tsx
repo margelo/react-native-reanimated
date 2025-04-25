@@ -119,7 +119,7 @@ export default class AnimatedComponent
 
   componentDidMount() {
     super.componentDidMount();
-    console.log("REA: Mount", this.reanimatedID);
+    // console.log("REA: Mount", this.reanimatedID);
 
     if (!IS_WEB) {
       // It exists only on native platforms. We initialize it here because the ref to the animated component is available only post-mount
@@ -171,7 +171,7 @@ export default class AnimatedComponent
 
   componentWillUnmount() {
     super.componentWillUnmount();
-    console.log("REA: UNMount", this.reanimatedID);
+    // console.log("REA: UNMount", this.reanimatedID);
     this._NativeEventsManager?.detachEvents();
     this._jsPropsUpdater.removeOnJSPropsChangeListener(this);
     this._detachStyles();
@@ -224,7 +224,7 @@ export default class AnimatedComponent
   }
 
   _updateStylePropsJS(props: StyleProps) {
-    console.log("Updated style props", this.reanimatedID)
+    console.log(this.reanimatedID, "Updated style props", props)
     this.setState({ styleProps: props });
   }
 

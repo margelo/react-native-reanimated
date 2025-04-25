@@ -92,7 +92,7 @@ void ReanimatedModuleProxy::init(
       return;
     }
 
-    __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "updateProps() animatedPropsRegistry_->update");
+//    __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "updateProps() animatedPropsRegistry_->update");
     strongThis->animatedPropsRegistry_->update(rt, operations);
   };
 
@@ -687,7 +687,7 @@ double ReanimatedModuleProxy::getCssTimestamp() {
 
 void ReanimatedModuleProxy::performOperations() {
   ReanimatedSystraceSection s("ReanimatedModuleProxy::performOperations");
-  __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "performOperations()");
+//  __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "performOperations()");
 
   jsi::Runtime &rt =
       workletsModuleProxy_->getUIWorkletRuntime()->getJSIRuntime();
@@ -709,7 +709,7 @@ void ReanimatedModuleProxy::performOperations() {
     // Flush all animated props updates
     animatedPropsRegistry_->flushUpdates(updatesBatch);
     // NOTE: flush is writing the updates
-    __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "- animatedPropsRegistry_->flushUpdates %zu", updatesBatch.size());
+//    __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "- animatedPropsRegistry_->flushUpdates %zu", updatesBatch.size());
 
     if (shouldUpdateCssAnimations_) {
       cssTransitionsRegistry_->lock();
@@ -782,7 +782,7 @@ void ReanimatedModuleProxy::commitUpdates(
   if (shouldFlushRegistry_) {
     shouldFlushRegistry_ = false;
     const auto propsMap = updatesRegistryManager_->collectProps();
-    __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "::commitUpdates shouldFlushRegistry propsMap size %zu", propsMap.size());
+//    __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "::commitUpdates shouldFlushRegistry propsMap size %zu", propsMap.size());
     for (auto const &[family, props] : propsMap) {
       const auto surfaceId = family->getSurfaceId();
       auto &propsVector = propsMapBySurface[surfaceId][family];
@@ -791,7 +791,7 @@ void ReanimatedModuleProxy::commitUpdates(
       }
     }
   } else {
-      __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "::commitUpdates updatesBatch size %zu",updatesBatch.size());
+//      __android_log_print(ANDROID_LOG_DEBUG, "Hanno", "::commitUpdates updatesBatch size %zu",updatesBatch.size());
     for (auto const &[shadowNode, props] : updatesBatch) {
       SurfaceId surfaceId = shadowNode->getSurfaceId();
       auto family = &shadowNode->getFamily();
